@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<!-- saved from url=(0062)http://mbostock.github.io/d3/talk/20111116/pack-hierarchy.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <link type="text/css" rel="stylesheet" href="./index_files/style.css">
+    <style type="text/css">
+
+text {
+  font-size: 9px;
+  pointer-events: none;
+}
+
+text.parent {
+  font-size: 13px;
+  fill: #000000;
+}
+
+circle {
+  fill: #ccc;
+  stroke: #999;
+  pointer-events: all;
+}
+
+circle.parent {
+  fill: #1f77b4;
+  fill-opacity: .1;
+  stroke: steelblue;
+}
+
+circle.parent:hover {
+  stroke: #ff7f0e;
+  stroke-width: .5px;
+}
+
+circle.child {
+  pointer-events: none;
+}
+
+    </style>
+  </head>
+  <body>
+    <h2 style="background-color:#ffffff">
+      Blue: Technology<br>
+      Red: Politics<br>
+      Green: Feminism<br>
+      Yellow: Health
+    </h2>
+    <script type="text/javascript" src="./index_files/d3.js"></script>
+    <script type="text/javascript" src="./index_files/d3.layout.js"></script>
+    <script type="text/javascript">
+
+var w = 1280,
+    h = 800,
+    r = 720,
+    x = d3.scale.linear().range([0, r]),
+    y = d3.scale.linear().range([0, r]),
+    defaultColor = '#1f77b4',
+    node,
+    root;
+
+var colors = {
+  'Politics': '#ff0000',
+  'Technology': '#00ff00',
+  'Feminism': '#0000ff',
+  'Health': '#ffff00'
+};
+
+var pack = d3.layout.pack()
+    .size([r, r])
+    .value(function(d) { return d.size; })
+
+var vis = d3.select("body").insert("svg:svg", "h2")
+    .attr("width", w)
+    .attr("height", h)
+  .append("svg:g")
+    .attr("transform", "translate(" + (w - r) / 2 + "," + (h - r) / 2 + ")");
+
+function processData(data) {
+  var exit = {name:"root", children:[]};
+  for (var i in data) {
+    var idOne = exit.children.push({
+      name:i,
+      children:[]
+    }) - 1;
+    for (var j in data[i]) {
+      var idTwo = exit.children[idOne].children.push({
+        name:j,
+        children:[]
+      }) - 1;
+      for (var k in data[i][j]) {
+        var idThree = exit.children[idOne].children[idTwo].children.push({
+          name:k,
+          size:data[i][j][k]
+        }) - 1;
+      }
+    }
+  }
+  return exit;
+}
+
+d3.json("data.json", function(data) {
+  data = processData(data);
+  console.log(JSON.stringify(data, true));
+  node = root = data;
+
+  var nodes = pack.nodes(root);
+
+  vis.selectAll("circle")
+      .data(nodes)
+    .enter().append("svg:circle")
+      .attr("class", function(d) { return d.children ? "parent" : "child"; })
+      .attr("cx", function(d) { return d.x; })
+      .attr("cy", function(d) { return d.y; })
+      .attr("r", function(d) { return d.r; })
+      .style("fill", function(d) { return getColor(d); })
+      .on("click", function(d) { return zoom(node == d ? root : d); });
+
+/*
+      //Create a wrapper for the arcs and text
+    var hiddenArcWrapper = vis.append("g")
+      .attr("class", "hiddenArcWrapper")
+      .style("opacity", 1);
+    //Create the arcs on which the text can be plotted - will be hidden
+    var hiddenArcs = vis.selectAll(".circleArcHidden")
+      .data(nodes)
+      .enter().append("path")
+      .attr("class", "circleArcHidden")
+      .attr("id", function(d, i) { return "circleArc_"+i; })
+      .attr("d", function(d,i) { return "M "+ -d.r +" 0 A "+ d.r +" "+ d.r +" 0 0 1 "+ d.r +" 0"; })
+      .style("fill", "none");
+    //Append the text to the arcs
+    var arcText = vis.selectAll(".circleText")
+      .data(nodes)
+       .enter().append("text")
+      .attr("class", "circleText")
+      .style("font-size", function(d) {
+        //Calculate best font-size
+        d.fontSize = d.r / 10;        
+        return Math.round(d.fontSize)+"px"; 
+      })
+       .append("textPath")
+      .attr("startOffset","50%")
+      .attr("xlink:href",function(d,i) { return "#circleArc_"+i; })
+      .text(function(d) { return d.name; });
+*/
+
+  vis.selectAll("text")
+      .data(nodes)
+    .enter().append("svg:text")
+      .attr("class", function(d) { return d.children ? "parent" : "child"; })
+      .attr("x", function(d) { return d.x; })
+      .attr("y", function(d) { return getYpos(d); })
+      .attr("dy", ".35em")
+      .attr("text-anchor", "middle")
+      .style("opacity", function(d) { return d.r > 20 ? 1 : 0; })
+      .text(function(d) { return d.name; });
+
+
+  d3.select(window).on("click", function() { zoom(root); });
+});
+
+function getYpos(d) {
+  for (var i in colors) {
+    if (d.name == i) {
+      return d.y * 1.03;
+    }
+  }
+  return d.y;
+}
+
+function getColor(d) {
+  for (var i in colors) {
+    if (d.name == i) {
+      return colors[i];
+    }
+  }
+  return defaultColor;
+}
+
+function zoom(d, i) {
+  var k = r / d.r / 2;
+  x.domain([d.x - d.r, d.x + d.r]);
+  y.domain([d.y - d.r, d.y + d.r]);
+
+  var t = vis.transition()
+      .duration(d3.event.altKey ? 7500 : 750);
+
+  t.selectAll("circle")
+      .attr("cx", function(d) { return x(d.x); })
+      .attr("cy", function(d) { return y(d.y); })
+      .attr("r", function(d) { return k * d.r; });
+
+  t.selectAll("text")
+      .attr("x", function(d) { return x(d.x); })
+      .attr("y", function(d) { return y(d.y); })
+      .style("opacity", function(d) { return k * d.r > 20 ? 1 : 0; });
+
+  node = d;
+  d3.event.stopPropagation();
+}
+
+    </script>
+  
+
+<script type="text/javascript">(function () {
+        return window.SIG_EXT = {};
+      })()</script></body></html>
